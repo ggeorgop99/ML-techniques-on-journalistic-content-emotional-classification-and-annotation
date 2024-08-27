@@ -41,21 +41,21 @@ TELNETCONSOLE_ENABLED = False
 
 # Override the default request headers
 DEFAULT_REQUEST_HEADERS = {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en',
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en",
 }
 
 # Enable downloader middlewares
 DOWNLOADER_MIDDLEWARES = {
-    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
-    'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
-    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 90,
-    'scrapy_proxies.RandomProxy': 100,
-    'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
+    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
+    "scrapy_user_agents.middlewares.RandomUserAgentMiddleware": 400,
+    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
+    "scrapy_proxies.RandomProxy": 100,
+    "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 110,
 }
 
 # Proxy list to be used by scrapy-proxies
-PROXY_LIST = 'skroutz_scraping/amazon_reviews_scraping/amazon_reviews_scraping/spiders/proxies_list.txt'  # Update with the path to your proxy list
+PROXY_LIST = "skroutz_scraping/amazon_reviews_scraping/amazon_reviews_scraping/spiders/proxies_list.txt"
 
 # Proxy mode
 # 0 = Every requests have different proxy
@@ -64,7 +64,7 @@ PROXY_LIST = 'skroutz_scraping/amazon_reviews_scraping/amazon_reviews_scraping/s
 PROXY_MODE = 0
 
 # If proxy mode is 2 uncomment this sentence :
-#CUSTOM_PROXY = "http://host1:port"
+# CUSTOM_PROXY = "http://host1:port"
 
 # Enable AutoThrottle
 AUTOTHROTTLE_ENABLED = True
@@ -76,6 +76,6 @@ AUTOTHROTTLE_DEBUG = False
 # HTTP caching (disabled by default)
 HTTPCACHE_ENABLED = True
 HTTPCACHE_EXPIRATION_SECS = 0
-HTTPCACHE_DIR = 'httpcache'
+HTTPCACHE_DIR = "httpcache"
 HTTPCACHE_IGNORE_HTTP_CODES = []
-HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+HTTPCACHE_STORAGE = "scrapy.extensions.httpcache.FilesystemCacheStorage"

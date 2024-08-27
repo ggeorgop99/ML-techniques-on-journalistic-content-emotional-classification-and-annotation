@@ -1,16 +1,5 @@
 import pandas as pd
-
-# import csv
-# from itertools import zip_longest
-# from difflib import SequenceMatcher
-# import os
 import argparse
-
-# import sys
-
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# from utils import generate_unique_filename
-
 
 # Define the command-line arguments
 parser = argparse.ArgumentParser(description="Clear the dataset.")
