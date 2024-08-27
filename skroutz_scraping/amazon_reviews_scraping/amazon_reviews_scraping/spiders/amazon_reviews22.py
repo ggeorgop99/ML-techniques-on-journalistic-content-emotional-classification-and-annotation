@@ -1,90 +1,105 @@
 # -*- coding: utf-8 -*-
 
-# Importing Scrapy Library
-
 import pandas as pd
 import scrapy
-from scrapy.utils.project import get_project_settings
 from scrapy.http import Request
+from scrapy.utils.project import get_project_settings
 
 
-# Creating a new class to implement Spider
 class AmazonReviewsSpider(scrapy.Spider):
-    file_name = "links.csv"
-
-    # Spider name
-    name = "skroutz22"
-
-    # Domain names to scrape
+    name = "amazon_reviews"
     allowed_domains = ["skroutz.gr"]
-
-    # Base URL
     myBaseUrl = "https://www.skroutz.gr"
     start_urls = []
+    file_name = "links.csv"
 
-    df = pd.read_csv(file_name, sep="\t or ,")
-    df.drop_duplicates(subset=None, inplace=True)
-    print(df.head())
-    df = df["link"].tolist()
-    # Creating list of urls to be scraped by appending page number at the end of base url
-    for i in range(1, len(df)):
-        start_urls.append(myBaseUrl + df[i])
+    custom_settings = {
+        "BOT_NAME": "skroutz_reviews_scraping",
+        "SPIDER_MODULES": ["amazon_reviews_scraping.spiders"],
+        "NEWSPIDER_MODULE": "amazon_reviews_scraping.spiders",
+        "ROBOTSTXT_OBEY": False,
+        "CONCURRENT_REQUESTS": 1,
+        "DOWNLOAD_DELAY": 2,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
+        "CONCURRENT_REQUESTS_PER_IP": 1,
+        "RETRY_ENABLED": True,
+        "RETRY_TIMES": 10,
+        "RETRY_HTTP_CODES": [429, 500, 502, 503, 504, 522, 524, 408],
+        "COOKIES_ENABLED": False,
+        "TELNETCONSOLE_ENABLED": False,
+        "DEFAULT_REQUEST_HEADERS": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en",
+        },
+        "DOWNLOADER_MIDDLEWARES": {
+            "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
+            "scrapy_user_agents.middlewares.RandomUserAgentMiddleware": 400,
+            "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
+            # 'scrapy_proxies.RandomProxy': 100,
+            # 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
+        },
+        # 'PROXY_LIST': 'amazon_reviews_scraping/amazon_reviews_scraping/spiders/proxies_list.txt',
+        # 'PROXY_MODE': 0,
+        "AUTOTHROTTLE_ENABLED": True,
+        "AUTOTHROTTLE_START_DELAY": 5,
+        "AUTOTHROTTLE_MAX_DELAY": 200,
+        "AUTOTHROTTLE_TARGET_CONCURRENCY": 1.0,
+        "AUTOTHROTTLE_DEBUG": False,
+        "HTTPCACHE_ENABLED": True,
+        "HTTPCACHE_EXPIRATION_SECS": 0,
+        "HTTPCACHE_DIR": "httpcache",
+        "HTTPCACHE_IGNORE_HTTP_CODES": [],
+        "HTTPCACHE_STORAGE": "scrapy.extensions.httpcache.FilesystemCacheStorage",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super(AmazonReviewsSpider, self).__init__(*args, **kwargs)
+
+        # Load and print settings
+        # self.settings = get_project_settings()
+        # for key, value in self.settings.items():
+        #     print(f'{key}: {value}')
+
+        for key, value in self.custom_settings.items():
+            self.logger.info(f"{key}: {value}")
+
+        self.df = pd.read_csv(self.file_name, sep="\t or ,")
+        self.df.drop_duplicates(subset=None, inplace=True)
+        self.df = self.df["link"].tolist()
+        for i in range(len(self.df)):
+            self.start_urls.append(self.myBaseUrl + self.df[i])
 
     def start_requests(self):
-        self.settings = get_project_settings()
-        print(self.settings.attributes.keys())
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-US,en;q=0.5",
             "Connection": "keep-alive",
-            "Cookie": "AMCV_0D15148954E6C5100A4C98BC%40AdobeOrg=1176715910%7CMCIDTS%7C19271%7CMCMID%7C80534695734291136713728777212980602826%7CMCAAMLH-1665548058%7C7%7CMCAAMB-1665548058%7C6G1ynYcLPuiQxYZrsz_pkqfLG9yMXBpb2zX5dvJdYQJzPXImdj0y%7CMCOPTOUT-1664950458s%7CNONE%7CMCAID%7CNONE%7CMCSYNCSOP%7C411-19272%7CvVersion%7C5.4.0; s_ecid=MCMID%7C80534695734291136713728777212980602826; __cfruid=37ff2049fc4dcffaab8d008026b166001c67dd49-1664418998; AMCVS_0D15148954E6C5100A4C98BC%40AdobeOrg=1; s_cc=true; __cf_bm=NIDFoL5PTkinis50ohQiCs4q7U4SZJ8oTaTW4kHT0SE-1664943258-0-AVwtneMLLP997IAVfltTqK949EmY349o8RJT7pYSp/oF9lChUSNLohrDRIHsiEB5TwTZ9QL7e9nAH+2vmXzhTtE=; PHPSESSID=ddf49facfda7bcb4656eea122199ea0d",
-            "If-Modified-Since": "Tue, 04 May 2021 05:09:49 GMT",
-            "If-None-Match": 'W/"12c6a-5c17a16600f6c-gzip"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "TE": "trailers",
             "Upgrade-Insecure-Requests": "1",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0",
         }
 
-        # add above headers in the request
-        for i in range(len(self.df)):
-            yield Request(self.start_urls[i], callback=self.parse, headers=headers)
+        for url in self.start_urls:
+            yield Request(url, callback=self.parse, headers=headers)
 
-    # Defining a Scrapy parser
     def parse(self, response):
         topic = response.css("#nav")
-
-        # collecting topic
         top = topic.css("h2")
-
         title = response.css("#sku-details")
         titlee = title.css("h1")
-
         data = response.css("#sku_reviews_list")
-
-        # Collecting product star ratings
         star_rating = data.css(".actual-rating")
-
-        # Collecting user reviews
         comments = data.css(".review-body")
 
-        # vote = data.css('.review-rate')
         count = 0
-
-        # Combining the results
         for review in star_rating:
             yield {
                 "stars": "".join(review.xpath(".//text()").extract()),
                 "comment": "".join(comments[count].xpath(".//text()").extract()),
-                #'vote': ''.join(vote[count].xpath("//div[@class='review-rate']/text()").extract()),
                 "topic": "".join(top.xpath(".//text()").extract()),
                 "title": "".join(titlee.xpath(".//text()").extract()),
             }
-            count = count + 1
+            count += 1
 
 
 # scrapy runspider amazon_reviews_scraping/amazon_reviews_scraping/spiders/amazon_reviews22.py -o dirtyreviews.csv
