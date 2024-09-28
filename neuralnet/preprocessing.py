@@ -15,7 +15,7 @@ nlp = spacy.load("el_core_news_lg")
 regexp = RegexpTokenizer("\w+")
 
 # Define the command-line arguments
-parser = argparse.ArgumentParser(description="Train a sentiment analysis model.")
+parser = argparse.ArgumentParser(description="Preprocess dataset.")
 parser.add_argument(
     "--mode",
     type=str,
