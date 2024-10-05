@@ -1,29 +1,29 @@
 import pandas as pd
 
-file1 = "dataset1Spellchecked_bin.csv"
-file2 = "dataset2Spellchecked_bin.csv"
-file3 = "dataset3Spellchecked_bin.csv"
-file4 = "dataset4Spellchecked_bin.csv"
 
-df1 = pd.read_csv(file1)
-df2 = pd.read_csv(file2)
-df3 = pd.read_csv(file3)
-df4 = pd.read_csv(file4)
+def merge_csv(*files):
+    dfs = []
 
-dfs = [df1, df2, df3, df4]
+    for file in files:
+        if file:
+            df = pd.read_csv(file)
+            dfs.append(df)
+            print(f"\nDataFrame from {file}:")
+            print(df.head())
 
-print("First DataFrame:")
-print(df1.head())
-print("\nSecond DataFrame:")
-print(df2.head())
-print("\nThird DataFrame:")
-print(df3.head())
-print("\nFourth DataFrame:")
-print(df4.head())
+    merged_df = pd.concat(dfs, ignore_index=True)
 
-merged_df = pd.concat(dfs, ignore_index=True)
-merged_df.drop_duplicates(inplace=True)
-print("\nMerged DataFrame:")
-print(merged_df.head())
+    merged_df.drop_duplicates(inplace=True)
 
-merged_df.to_csv("dataseSpellchecked_bin.csv", index=False)
+    print("\nMerged DataFrame:")
+    print(merged_df.head())
+
+    merged_df.to_csv("targetAndPharm30Spellchecked.csv", index=False)
+
+
+file1 = "targetSpellchecked_bin.csv"
+file2 = "pharmSpellchecked30_bin.csv"
+# file3 = "dataset3Spellchecked_bin.csv"
+# file4 = "dataset4Spellchecked_bin.csv"
+
+merge_csv(file1, file2)
