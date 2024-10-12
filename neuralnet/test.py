@@ -17,20 +17,16 @@ from sklearn.metrics import (
     classification_report,
 )
 import argparse
+import os
 
 
-def plot_sentiment_comparison(Y_test, Y_predictions):
-    plt.figure(figsize=(10, 6))
-    plt.scatter(range(len(Y_test)), Y_test, alpha=0.5, label="Actual")
-    plt.scatter(range(len(Y_test)), Y_predictions, alpha=0.5, label="Predicted", c="r")
-    plt.title("Actual vs Predicted Sentiment")
-    plt.xlabel("Samples")
-    plt.ylabel("Sentiment")
-    plt.legend()
-    plt.show()
+# Save plots instead of showing them
+def save_plot(fig, filename):
+    fig.savefig(filename)
+    plt.close(fig)
 
 
-def plot_predicted_probabilities(Y_probabilities):
+def plot_predicted_probabilities(Y_probabilities, model_name, test_set_name):
     plt.figure(figsize=(10, 6))
     plt.hist(
         Y_probabilities,
@@ -42,34 +38,37 @@ def plot_predicted_probabilities(Y_probabilities):
     plt.axvline(
         0.5, color="red", linestyle="dashed", linewidth=1, label="Threshold = 0.5"
     )
-    plt.title("Distribution of Predicted probabilities")
+    plt.title("Distribution of Predicted Probabilities")
     plt.xlabel("Predicted Probability")
     plt.ylabel("Frequency")
     plt.legend()
-    plt.show()
+    plt.savefig(f"{results_dir}/predicted_probabilities.png")
+    plt.show()  # Show the plot
+    plt.close()
 
 
-def plot_predicted_predictions(Y_predictions):
+def plot_predicted_predictions(Y_predictions, model_name, test_set_name):
     plt.figure(figsize=(10, 6))
     plt.hist(Y_predictions, bins=50, alpha=0.75, color="blue", label="Predictions")
     plt.axvline(
         0.5, color="red", linestyle="dashed", linewidth=1, label="Threshold = 0.5"
     )
-    plt.title("Distribution of predictions")
+    plt.title("Distribution of Predictions")
     plt.xlabel("Prediction")
     plt.ylabel("Frequency")
     plt.legend()
-    plt.show()
+    plt.savefig(f"{results_dir}/predicted_predictions.png")
+    plt.show()  # Show the plot
+    plt.close()
 
 
-def plot_roc_curve(Y_test, Y_predictions, roc_auc, mode):
+def plot_roc_curve(Y_test, Y_probabilities, model_name, test_set_name, mode):
     fpr, tpr, thresholds = roc_curve(
-        Y_test, Y_predictions if mode == "bin" else Y_predictions[:, 1]
+        Y_test, Y_probabilities if mode == "bin" else Y_probabilities[:, 1]
     )
-    # Determine the optimal threshold (e.g., the one that maximizes the TPR - FPR difference)
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold = thresholds[optimal_idx]
-    print("Optimal Threshold:", optimal_threshold)
+    roc_auc = roc_auc_score(
+        Y_test, Y_probabilities if mode == "bin" else Y_probabilities[:, 1]
+    )
     plt.figure(figsize=(10, 6))
     plt.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
     plt.plot([0, 1], [0, 1], "k--")
@@ -77,31 +76,13 @@ def plot_roc_curve(Y_test, Y_predictions, roc_auc, mode):
     plt.ylabel("True Positive Rate")
     plt.title("ROC Curve")
     plt.legend(loc="lower right")
-    plt.show()
-    return optimal_threshold
+    plt.savefig(f"{results_dir}/roc_curve.png")
+    plt.show()  # Show the plot
+    plt.close()
+    return roc_auc
 
 
-# Plot ROC curve
-def plot_roc_curve_float(Y_test, Y_probabilities, roc_auc_float, mode):
-    fpr, tpr, thresholds = roc_curve(
-        Y_test, Y_probabilities if mode == "bin" else Y_probabilities[:, 1]
-    )
-    # Determine the optimal threshold (e.g., the one that maximizes the TPR - FPR difference)
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold_float = thresholds[optimal_idx]
-    print("Optimal Float Threshold:", optimal_threshold_float)
-    plt.figure(figsize=(10, 6))
-    plt.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc_float:.2f})")
-    plt.plot([0, 1], [0, 1], "k--")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve Float")
-    plt.legend(loc="lower right")
-    plt.show()
-    return optimal_threshold_float
-
-
-def plot_confusion_matrix(Y_test, Y_predictions):
+def plot_confusion_matrix(Y_test, Y_predictions, model_name, test_set_name):
     conf_matrix = confusion_matrix(Y_test, Y_predictions)
     print("Confusion Matrix:\n", conf_matrix)
     plt.figure(figsize=(8, 6))
@@ -109,12 +90,13 @@ def plot_confusion_matrix(Y_test, Y_predictions):
     plt.title("Confusion Matrix")
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
-    plt.show()
+    plt.savefig(f"{results_dir}/confusion_matrix.png")
+    plt.show()  # Show the plot
+    plt.close()
 
 
 def calculate_metrics(Y_test, Y_predictions, Y_probabilities, mode):
     # Calculate and print ROC AUC score
-
     if mode == "bin":
         roc_auc = roc_auc_score(Y_test, Y_predictions)
     else:
@@ -126,26 +108,6 @@ def calculate_metrics(Y_test, Y_predictions, Y_probabilities, mode):
     else:
         roc_auc_float = roc_auc_score(Y_test, Y_probabilities, multi_class="ovr")
     print(f"ROC AUC Score: {roc_auc_float:.2f}")
-
-    # Calculate weighted accuracy
-    weights = np.abs(Y_probabilities - 0.5) * 2
-    if mode == "bin":
-        correct_predictions = Y_test.flatten() == Y_predictions.flatten()
-    else:
-        correct_predictions = Y_test == Y_predictions
-
-    weighted_accuracy = np.sum(correct_predictions * weights.flatten()) / np.sum(
-        weights.flatten()
-    )
-    print(f"Weighted Accuracy: {weighted_accuracy:.2f}")
-
-    # Calculate Brier score
-    brier_score = np.mean((Y_probabilities - Y_test) ** 2)
-    print(f"Brier Score: {brier_score:.4f}")
-
-    # Calculate log loss
-    logloss = log_loss(Y_test, Y_probabilities)
-    print(f"Log Loss: {logloss:.4f}")
 
     # Calculate precision, recall, and F1-score
     precision = precision_score(
@@ -181,6 +143,29 @@ def calculate_metrics(Y_test, Y_predictions, Y_probabilities, mode):
     return roc_auc, roc_auc_float, recall
 
 
+def save_evaluation_results(
+    accuracy, precision, recall, f1, roc_auc, logloss, model_name, test_set_name
+):
+    results = {
+        "Model Name": model_name,
+        "Test Set": test_set_name,
+        "Accuracy": accuracy,
+        "Precision": precision,
+        "Recall": recall,
+        "F1-Score": f1,
+        "ROC AUC": roc_auc,
+        "Log Loss": logloss,
+    }
+    results_df = pd.DataFrame([results])
+    results_df.to_csv(
+        "model_results.csv",
+        mode="a",
+        header=not os.path.exists("model_results.csv"),
+        index=False,
+    )
+    print("\nResults saved to CSV file.")
+
+
 # Define the command-line arguments
 parser = argparse.ArgumentParser(description="Test a sentiment analysis model.")
 parser.add_argument(
@@ -193,30 +178,42 @@ parser.add_argument(
 parser.add_argument("--file_name", type=str, required=True, help="Name of the file")
 parser.add_argument("--model_name", type=str, required=True, help="Name of the model")
 args = parser.parse_args()
+
 # Access the mode arguments
 mode = args.mode
 file_name = args.file_name
 model_name = args.model_name
 
-dir_path = f"savedmodel_{mode}"
-model_path = f"{dir_path}/savedmodel_{model_name}_{mode}.keras"
-model = load_model(model_path)
+# Paths
+dir_path = f"savedmodel_{mode}/{model_name}_model"
+model_path = f"{dir_path}/{model_name}_{mode}.keras"
+history_path = f"{dir_path}/{model_name}_{mode}_history.npy"
+vectorizer_path = f"{dir_path}/count_vectorizer_{model_name}_{mode}.pkl"
 
-with open(f"{dir_path}/count_vectorizer_{model_name}_{mode}.pkl", "rb") as f:
+# Create directory for results if it doesn't exist
+results_dir = f"{dir_path}/{file_name}_results"
+os.makedirs(results_dir, exist_ok=True)
+
+# Load model and vectorizer
+model = load_model(model_path)
+with open(vectorizer_path, "rb") as f:
     vec = pickle.load(f)
 
+# Load test dataset
 dataset_path = f"preprocessed_datasets/{file_name}_{mode}.csv"
 df = pd.read_csv(dataset_path)
 X_test = df["reviews"].values
 Y_test = df["sentiment"].values
 
+# Transform test data
 x_test = vec.transform(X_test.astype("U"))
 
+# Adjust labels for non-binary classification
 if mode == "nonbin":
     Y_test += 1
     Y_test = to_categorical(Y_test)  # One-hot encode for non-binary classification
 
-# No need for one-hot encoding in binary mode
+# Predictions
 Y_probabilities = model.predict(x_test)
 
 if mode == "bin":
@@ -225,30 +222,40 @@ else:
     Y_predictions = np.argmax(Y_probabilities, axis=1)
     Y_test = np.argmax(Y_test, axis=1)
 
-history_path = f"savedmodel{mode}/savedmodel{mode}.npy"
-history = np.load(history_path, allow_pickle=True).item()
-
-# Plot actual vs predicted sentiment
-plot_sentiment_comparison(Y_test, Y_predictions)
-
-# Plot the distribution of predicted Y_probabilities
-plot_predicted_probabilities(Y_probabilities)
-
-plot_predicted_predictions(Y_predictions)
-
-# Calculate and print metrics
+# Evaluate the model
 evaluation = model.evaluate(x_test, Y_test, verbose=True)
-loss = evaluation[0]
-accuracy = evaluation[1]
+loss, accuracy = evaluation[0], evaluation[1]
 print(f"Loss: {loss}, Accuracy: {accuracy}")
-roc_auc, roc_auc_float, recall = calculate_metrics(
-    Y_test, Y_predictions, Y_probabilities, mode
+
+# Calculate metrics
+precision = precision_score(
+    Y_test, Y_predictions, average="binary" if mode == "bin" else "macro"
+)
+recall = recall_score(
+    Y_test, Y_predictions, average="binary" if mode == "bin" else "macro"
+)
+f1 = f1_score(Y_test, Y_predictions, average="binary" if mode == "bin" else "macro")
+logloss = log_loss(Y_test, Y_probabilities)
+
+# Calculate ROC AUC
+if mode == "bin":
+    roc_auc = roc_auc_score(
+        Y_test, Y_probabilities
+    )  # Only need true labels and probabilities
+else:
+    roc_auc = roc_auc_score(
+        Y_test, Y_probabilities, multi_class="ovr"
+    )  # For multi-class
+
+# Save evaluation results
+save_evaluation_results(
+    accuracy, precision, recall, f1, roc_auc, logloss, model_name, file_name
 )
 
-# Plot ROC curve
-plot_roc_curve(Y_test, Y_predictions, roc_auc, mode)
+# Plot confusion matrix and ROC curve
+plot_confusion_matrix(Y_test, Y_predictions, model_name, file_name)
+roc_auc = plot_roc_curve(Y_test, Y_probabilities, model_name, file_name, mode)
 
-plot_roc_curve_float(Y_test, Y_probabilities, roc_auc_float, mode)
-
-# Plot confusion matrix
-plot_confusion_matrix(Y_test, Y_predictions)
+# Plot additional graphs
+plot_predicted_probabilities(Y_probabilities, model_name, file_name)
+plot_predicted_predictions(Y_predictions, model_name, file_name)
