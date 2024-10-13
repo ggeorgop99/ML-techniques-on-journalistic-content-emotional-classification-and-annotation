@@ -26,7 +26,24 @@ def save_plot(fig, filename):
     plt.close(fig)
 
 
-def plot_predicted_probabilities(Y_probabilities, model_name, test_set_name):
+def plot_sentiment_distribution(Y_test, file_name, mode):
+    unique_sentiments, counts = np.unique(Y_test, return_counts=True)
+    sns.set_theme(style="whitegrid")
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(x=unique_sentiments, y=counts, palette="viridis")
+    plt.title("Distribution of Sentiments", fontsize=16)
+    plt.xlabel("Sentiment", fontsize=14)
+    plt.ylabel("Count", fontsize=14)
+    for i, count in enumerate(counts):
+        ax.text(i, count, str(count), ha="center", va="bottom", fontsize=12)
+
+    plt.savefig(
+        f"{results_dir}/{file_name}_sentiment_distribution_{mode}.png"
+    )  # Save the plot
+    plt.show()  # Show the plot
+
+
+def plot_predicted_probabilities(Y_probabilities):
     plt.figure(figsize=(10, 6))
     plt.hist(
         Y_probabilities,
@@ -47,7 +64,7 @@ def plot_predicted_probabilities(Y_probabilities, model_name, test_set_name):
     plt.close()
 
 
-def plot_predicted_predictions(Y_predictions, model_name, test_set_name):
+def plot_predicted_predictions(Y_predictions):
     plt.figure(figsize=(10, 6))
     plt.hist(Y_predictions, bins=50, alpha=0.75, color="blue", label="Predictions")
     plt.axvline(
@@ -62,7 +79,7 @@ def plot_predicted_predictions(Y_predictions, model_name, test_set_name):
     plt.close()
 
 
-def plot_roc_curve(Y_test, Y_probabilities, model_name, test_set_name, mode):
+def plot_roc_curve(Y_test, Y_probabilities, mode):
     fpr, tpr, thresholds = roc_curve(
         Y_test, Y_probabilities if mode == "bin" else Y_probabilities[:, 1]
     )
@@ -82,7 +99,7 @@ def plot_roc_curve(Y_test, Y_probabilities, model_name, test_set_name, mode):
     return roc_auc
 
 
-def plot_confusion_matrix(Y_test, Y_predictions, model_name, test_set_name):
+def plot_confusion_matrix(Y_test, Y_predictions):
     conf_matrix = confusion_matrix(Y_test, Y_predictions)
     print("Confusion Matrix:\n", conf_matrix)
     plt.figure(figsize=(8, 6))
@@ -158,9 +175,9 @@ def save_evaluation_results(
     }
     results_df = pd.DataFrame([results])
     results_df.to_csv(
-        "model_results.csv",
+        "models_results.csv",
         mode="a",
-        header=not os.path.exists("model_results.csv"),
+        header=False,
         index=False,
     )
     print("\nResults saved to CSV file.")
@@ -252,10 +269,13 @@ save_evaluation_results(
     accuracy, precision, recall, f1, roc_auc, logloss, model_name, file_name
 )
 
+# Plot sentiment distribution
+plot_sentiment_distribution(Y_test, file_name, mode)
+
 # Plot confusion matrix and ROC curve
-plot_confusion_matrix(Y_test, Y_predictions, model_name, file_name)
-roc_auc = plot_roc_curve(Y_test, Y_probabilities, model_name, file_name, mode)
+plot_confusion_matrix(Y_test, Y_predictions)
+roc_auc = plot_roc_curve(Y_test, Y_probabilities, mode)
 
 # Plot additional graphs
-plot_predicted_probabilities(Y_probabilities, model_name, file_name)
-plot_predicted_predictions(Y_predictions, model_name, file_name)
+plot_predicted_probabilities(Y_probabilities)
+plot_predicted_predictions(Y_predictions)

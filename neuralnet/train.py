@@ -7,10 +7,11 @@ import seaborn as sns
 from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model, to_categorical
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import l2
 import argparse
 import os
 
@@ -81,7 +82,7 @@ os.makedirs(model_dir, exist_ok=True)
 dataset_path = f"preprocessed_datasets/{file_name}_{mode}.csv"
 
 # CSV file to save results
-results_csv_path = "savedmodel_bin/model_results.csv"
+results_csv_path = f"savedmodel_bin/{file_name}_model_results.csv"
 
 # Initialize results DataFrame if the file doesn't exist
 if not os.path.exists(results_csv_path):
@@ -155,18 +156,44 @@ if mode == "nonbin":
 # Build the model
 model = Sequential(
     [
-        Dense(16, input_dim=x_train.shape[1], activation="relu"),
+        Dense(
+            16,
+            input_dim=x_train.shape[1],
+            activation="relu",
+            kernel_regularizer=l2(0.001),
+        ),
+        BatchNormalization(),
         Dropout(0.5),  # Add dropout for regularization
-        Dense(16, activation="relu"),
+        Dense(
+            16,
+            activation="relu",
+            kernel_regularizer=l2(0.001),
+        ),
+        BatchNormalization(),  # Add batch normalization here
         Dropout(0.5),  # Add dropout for regularization
         Dense(outp_node, activation="sigmoid"),
     ]
 )
 
+
+model.summary()
+
+# Early stopping
+early_stopping = EarlyStopping(
+    monitor="val_loss", patience=2, restore_best_weights=True
+)
+lr_schedule = (
+    tf.keras.callbacks.ReduceLROnPlateau(
+        monitor="val_loss", factor=0.1, patience=2, min_lr=1e-6
+    ),
+)
+
+optimizer = Adam(learning_rate=1e-4)
+
 # Compile the model with additional metrics
 model.compile(
     loss=loss_func,
-    optimizer=Adam(),
+    optimizer=optimizer,
     metrics=[
         "accuracy",
         tf.keras.metrics.Precision(),
@@ -176,11 +203,6 @@ model.compile(
     ],
 )
 
-model.summary()
-
-# Early stopping
-early_stopping = EarlyStopping(monitor="val_auc", patience=5, restore_best_weights=True)
-
 # Train the model
 history = model.fit(
     x_train,
@@ -188,8 +210,8 @@ history = model.fit(
     validation_data=(x_valid, Y_valid),
     epochs=100,
     verbose=True,
-    batch_size=16,
-    callbacks=[early_stopping],
+    batch_size=32,
+    callbacks=[early_stopping, lr_schedule],
 )
 
 # Evaluate the model on the test set and add results to history
