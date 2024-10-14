@@ -82,7 +82,7 @@ os.makedirs(model_dir, exist_ok=True)
 dataset_path = f"preprocessed_datasets/{file_name}_{mode}.csv"
 
 # CSV file to save results
-results_csv_path = f"savedmodel_bin/{file_name}_model_results.csv"
+results_csv_path = "models_results.csv"
 
 # Initialize results DataFrame if the file doesn't exist
 if not os.path.exists(results_csv_path):
