@@ -240,8 +240,9 @@ parser = argparse.ArgumentParser(description="Test a sentiment analysis model.")
 parser.add_argument(
     "--mode",
     type=str,
-    required=True,
+    required=False,
     choices=["bin", "nonbin"],
+    default="bin",
     help="Mode of the model: nonbin or bin",
 )
 parser.add_argument("--file_name", type=str, required=True, help="Name of the file")
@@ -251,8 +252,16 @@ parser.add_argument(
     type=str,
     required=False,
     choices=["platt", "isotonic"],
-    default="platt",
+    default="isotonic",
     help="Calibration method",
+)
+parser.add_argument(
+    "--testing_method",
+    type=str,
+    required=False,
+    choices=["classic", "mc"],
+    default="classic",
+    help="Testing method",
 )
 
 args = parser.parse_args()
@@ -261,6 +270,7 @@ mode = args.mode
 file_name = args.file_name
 model_name = args.model_name
 calibration_method = args.calibration_method
+testing_method = args.testing_method
 
 dir_path = f"savedmodel_{mode}/{model_name}_model"
 model_path = f"{dir_path}/{model_name}_{mode}.keras"
@@ -287,9 +297,8 @@ if mode == "nonbin":
     Y_test += 1
     Y_test = to_categorical(Y_test)  # One-hot encode for non-binary classification
 
-test = "classic"
 
-if test == "classic":
+if testing_method == "classic":
     Y_probabilities = model.predict(x_test)
     threshold = "N/A"
     no_of_uncertain_predictions = "N/A"
@@ -299,7 +308,7 @@ if test == "classic":
         final_predictions = np.argmax(Y_probabilities, axis=1)
         Y_test = np.argmax(Y_test, axis=1)
 
-elif test == "MC":
+elif testing_method == "mc":
     mean_pred, uncertainty = mc_dropout_predict(model, x_test.toarray())
     Y_probabilities = mean_pred
     if mode == "bin":
