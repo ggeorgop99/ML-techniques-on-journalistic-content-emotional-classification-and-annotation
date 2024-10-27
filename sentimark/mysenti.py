@@ -16,8 +16,8 @@ import argparse
 import os
 
 
-def clearfiles(mode):
-    data = pd.read_csv("dataset/dirtyreviews.csv")
+def clearfiles():
+    data = pd.read_csv(dataset_path, encoding="utf-8")
 
     data = data.drop("topic", axis=1)
     data = data.drop("title", axis=1)
@@ -26,7 +26,7 @@ def clearfiles(mode):
     data = data.drop_duplicates(subset=["comment"], keep="first")
     temp = []
     temp = data["stars"].values.tolist()
-    name = "reviewstars" + mode
+    name = f"{file_name}_{mode}"
     if mode == "bin":
         for i in range(0, len(data["stars"])):
 
@@ -51,30 +51,29 @@ def clearfiles(mode):
     data = data[cols]
 
     data.to_csv(
-        "dataset/" + name + ".csv",
+        f"{name}.csv",
         header=["reviews", "sentiment"],
         index=False,
         encoding="utf-8",
     )
 
 
-def splitfiles(mode):
-    if mode == "bin":
-        data = pd.read_csv("dataset/reviewstarsbin.csv")
+def splitfiles():
+    data = pd.read_csv(dataset_path, encoding="utf-8")
 
-        data["sentiment"].to_csv("starsbin.csv", header=["sentiment"], index=False)
+    stars_path = f"{dir_path}/{file_name}_stars_{mode}.csv"
+    reviews_path = f"{dir_path}/{file_name}_reviews_{mode}.csv"
 
-        data["reviews"].to_csv(
-            "reviews.csv", header=["reviews"], index=False, encoding="utf-8"
-        )
-    else:
-        data = pd.read_csv("dataset/reviewstarsnonbin.csv")
+    data["sentiment"].to_csv(stars_path, header=["sentiment"], index=False)
 
-        data["sentiment"].to_csv("starsnonbin.csv", header=["sentiment"], index=False)
+    data["reviews"].to_csv(
+        reviews_path,
+        header=["reviews"],
+        index=False,
+        encoding="utf-8",
+    )
 
-        data["reviews"].to_csv(
-            "reviews.csv", header=["reviews"], index=False, encoding="utf-8"
-        )
+    return stars_path, reviews_path
 
 
 def clean_accent(text):
@@ -128,12 +127,11 @@ args = parser.parse_args()
 # Access the mode arguments
 mode = args.mode
 file_name = args.file_name
-dir_path = f"{file_name}_{mode}"
+dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
 
 # Create directories
+dir_path = f"{file_name}_{mode}"
 os.makedirs(dir_path, exist_ok=True)
-
-dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
 
 # CSV file to save results
 results_csv_path = "results.csv"
@@ -147,29 +145,23 @@ if not os.path.exists(results_csv_path):
 h = Hunspell("el_GR")
 # if not a new .csv is downloaded and in folder
 # clear it and fix it
-if not (os.path.isfile("dataset/reviewstars" + mode + ".csv")):
-    clearfiles(mode)
+if "dirty" in file_name:
+    clearfiles()
     print("Cleared")
-# run split to have both reviews and stars .csv
-splitfiles(mode)
-if mode == "nonbin":
-    # File with reviews
-    file_name = "reviews.csv"
-    stars_name = "starsnonbin.csv"
-else:
-    file_name = "reviews.csv"
-    stars_name = "starsbin.csv"
 
-with open(file_name, newline="\n", encoding="utf-8") as f:
+# run split to have both reviews and stars .csv
+stars_path, reviews_path = splitfiles()
+
+with open(reviews_path, newline="\n", encoding="utf-8") as f:
     df = csv.reader(f)
     df = list(df)
     df = list(filter(None, df))  # list of reviews with no duplicates
-with open(stars_name, newline="\n") as g:
+
+with open(stars_path, newline="\n") as g:
     stt = []
     for row in csv.reader(g, delimiter=";"):
 
         stt.append(row[0])  # stars array
-
 
 # pharm lexicon
 with open("finallexformysenti/EmotionLookupTable.txt", "r", encoding="utf-8") as file:
@@ -233,8 +225,8 @@ for i in range(0, len(neg)):
 # Constants declarations
 suffix_prune_el = 3  # prune in words
 string_min_score = 0.76  # matching score
-kek = 0  # number of words that were checked
-lel = 0  # sum of words
+checkedWords = 0  # number of words that were checked
+totalWords = 0  # sum of words
 
 
 scorerev = [0]  # score per review
@@ -279,8 +271,9 @@ stiksh = [
     "9",
 ]  # unwanted chars that may repeat
 summinmax = [0]
+mysenti_predictions_path = f"{dir_path}/mysenti_{file_name}_{mode}.csv"
 with open(
-    "dataset/finalgreekmysenti" + mode + ".csv", "w", newline="", encoding="utf8"
+    mysenti_predictions_path, "w", newline="", encoding="utf8"
 ) as f:  # results csv
     writer = csv.writer(f, delimiter=",")
     writer.writerow(("review", "mysentiment", "min", "max", "sentiment"))  # row titles
@@ -298,12 +291,12 @@ with open(
 
         for words in rvwords:
             sr = 0  # sr start every word
-            lel = lel + 1  # count words
+            totalWords = totalWords + 1  # count words
             words = clean_accent(words)  # clean accent of word
 
             # emoticon first before any stiksh split so not to lose
             if words in emot:
-                kek = kek + 1  # word find counter
+                checkedWords = checkedWords + 1  # word find counter
                 sr = scorem[emot.index(words)]
                 scorerev[i] = scorerev[i] + sr  # if found adds score to review score
             else:
@@ -343,7 +336,7 @@ with open(
 
                 # Negative word check. If found flag=True and next word emotion skipped
                 if words in neg:
-                    kek = kek + 1
+                    checkedWords = checkedWords + 1
                     flag = True
 
                 # main list check and scoring
@@ -357,7 +350,7 @@ with open(
                         None, words, wrd
                     ).ratio()  # ratio of final matching
                     if match == 0 and scorera > string_min_score:  # match and ratio>
-                        kek = kek + 1  # word counter
+                        checkedWords = checkedWords + 1  # word counter
                         if flag == True:
                             flag = False  # if flag=True do it false and stop
                         else:
@@ -371,7 +364,7 @@ with open(
                             scorerev[i] = scorerev[i] + sr  # sum score of review
                 # if words in boost add in score
                 if words in boost:
-                    kek = kek + 1  # word counter
+                    checkedWords = checkedWords + 1  # word counter
                     sr = scorebo[boost.index(words)]
                     scorerev[i] = scorerev[i] + sr
             # check for max review score	until this word in every case se is the added score
@@ -401,18 +394,16 @@ with open(
         maxs.append(1)
 
     print(
-        "Words found in lexicon: ", kek, " Total words: ", lel
+        "Words found in lexicon: ", checkedWords, " Total words: ", totalWords
     )  # words found,total words
-    print("\n Ratio: ", kek / lel)  # ratio found
+    print("\n Ratio: ", checkedWords / totalWords)  # ratio found
 
     t = [df, summinmax, mins, maxs, stt]  # exported data
     export_data = zip_longest(*t)  # zip and write
     writer.writerows(export_data)
 
 # Prediction accuracy
-dataset = "dataset/finalgreekmysenti" + mode + ".csv"
-
-df = pd.read_csv(dataset)
+df = pd.read_csv(mysenti_predictions_path)
 
 res = []
 sent = []
