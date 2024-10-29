@@ -26,7 +26,10 @@ def clearfiles():
     data = data.drop_duplicates(subset=["comment"], keep="first")
     temp = []
     temp = data["stars"].values.tolist()
-    name = f"{file_name}_{mode}"
+
+    file_name = file_name.replace("dirty", "")
+    dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
+
     if mode == "bin":
         for i in range(0, len(data["stars"])):
 
@@ -56,6 +59,8 @@ def clearfiles():
         index=False,
         encoding="utf-8",
     )
+
+    return file_name, dataset_path
 
 
 def splitfiles():
@@ -129,25 +134,17 @@ mode = args.mode
 file_name = args.file_name
 dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
 
-# Create directories
-dir_path = f"{file_name}_{mode}"
-os.makedirs(dir_path, exist_ok=True)
-
-# CSV file to save results
-results_csv_path = "results.csv"
-
-# Initialize results DataFrame if the file doesn't exist
-if not os.path.exists(results_csv_path):
-    results_df = pd.DataFrame(columns=["Dataset", "Accuracy"])
-    results_df.to_csv(results_csv_path, index=False)
-
 # Hunspell check
 h = Hunspell("el_GR")
 # if not a new .csv is downloaded and in folder
 # clear it and fix it
 if "dirty" in file_name:
-    clearfiles()
+    file_name, dataset_path = clearfiles()
     print("Cleared")
+
+# Create directories
+dir_path = f"{file_name}_{mode}"
+os.makedirs(dir_path, exist_ok=True)
 
 # run split to have both reviews and stars .csv
 stars_path, reviews_path = splitfiles()
@@ -415,4 +412,25 @@ cnt = 0
 for i in range(1, len(res) - 1):
     if int(res[i]) == int(sent[i]):
         cnt = cnt + 1
-print("Correct Predicted: ", cnt, " = ", cnt / len(summinmax) * 100, "%")
+
+accuracy = cnt / len(summinmax) * 100
+print("Correct Predicted: ", cnt, " = ", accuracy, "%")
+
+# CSV file to save results
+results_csv_path = "results.csv"
+
+# Initialize results DataFrame if the file doesn't exist
+if not os.path.exists(results_csv_path):
+    results_df = pd.DataFrame(columns=["Dataset", "Accuracy"])
+    results_df.to_csv(results_csv_path, index=False)
+
+# Save model results to a CSV
+results = {
+    "Model Name": f"{file_name}_{mode}",
+    "Accuracy": accuracy,
+}
+
+results_df = pd.DataFrame([results])
+results_df.to_csv(
+    results_csv_path, mode="a", header=False, index=False
+)  # Append results

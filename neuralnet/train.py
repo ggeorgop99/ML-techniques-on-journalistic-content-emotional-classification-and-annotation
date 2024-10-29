@@ -241,7 +241,6 @@ plot_and_save(history.history, "recall", model_dir, file_name, mode)
 plot_and_save(history.history, "auc", model_dir, file_name, mode)
 plot_and_save(history.history, "mean_squared_error", model_dir, file_name, mode)
 
-
 # Save model results to a CSV
 results = {
     "Model Name": f"{file_name}_{mode}",
