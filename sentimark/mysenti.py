@@ -398,7 +398,8 @@ with open(
     print(
         "Words found in lexicon: ", checkedWords, " Total words: ", totalWords
     )  # words found,total words
-    print("\n Ratio: ", checkedWords / totalWords)  # ratio found
+    ratio = checkedWords / totalWords
+    print("\n Ratio: ", ratio)  # ratio found
 
     t = [df, summinmax, mins, maxs, stt]  # exported data
     export_data = zip_longest(*t)  # zip and write
@@ -426,13 +427,26 @@ results_csv_path = "results.csv"
 
 # Initialize results DataFrame if the file doesn't exist
 if not os.path.exists(results_csv_path):
-    results_df = pd.DataFrame(columns=["Dataset", "Accuracy"])
+    results_df = pd.DataFrame(
+        columns=[
+            "Dataset",
+            "Accuracy",
+            "Percentage of words found in lexicon",
+            "Total Words",
+            "Words Found",
+            "Correct Predicted",
+        ]
+    )
     results_df.to_csv(results_csv_path, index=False)
 
 # Save model results to a CSV
 results = {
     "Model Name": f"{file_name}_{mode}",
-    "Accuracy": accuracy,
+    "Accuracy": accuracy / 100,
+    "Percentage of words found in lexicon": ratio,
+    "Total Words": totalWords,
+    "Words Found": checkedWords,
+    "Correct Predicted": cnt,
 }
 
 results_df = pd.DataFrame([results])
