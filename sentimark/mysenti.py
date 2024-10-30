@@ -54,7 +54,7 @@ def clearfiles():
     data = data[cols]
 
     data.to_csv(
-        f"{name}.csv",
+        dataset_path,
         header=["reviews", "sentiment"],
         index=False,
         encoding="utf-8",
@@ -161,7 +161,9 @@ with open(stars_path, newline="\n") as g:
         stt.append(row[0])  # stars array
 
 # pharm lexicon
-with open("finallexformysenti/EmotionLookupTable.txt", "r", encoding="utf-8") as file:
+with open(
+    "../finallexformysenti/EmotionLookupTable.txt", "r", encoding="utf-8"
+) as file:
     terms_list = file.read().splitlines()
 
 word = []  # 2 arrays for word and score
@@ -180,7 +182,7 @@ for i in range(0, len(word)):
 
 
 # emoticontable same as pharm
-with open("finallexformysenti/EmoticonLookupTable.txt", "r") as file:
+with open("../finallexformysenti/EmoticonLookupTable.txt", "r") as file:
     emotic_list = file.read().splitlines()
 emot = []
 scorem = []
@@ -193,7 +195,7 @@ for i in range(0, len(scorem)):
 
 
 # boosterwords same as before
-with open("finallexformysenti/BoosterWordList.txt", "r", encoding="utf-8") as file:
+with open("../finallexformysenti/BoosterWordList.txt", "r", encoding="utf-8") as file:
     terms_listbo = file.read().splitlines()
 
 boost = []
@@ -209,7 +211,7 @@ for i in range(0, len(boost)):
     boost[i] = clean_accent(boost[i].lower())
 
 # negwords
-with open("finallexformysenti/NegatingWordList.txt", "r", encoding="utf-8") as file:
+with open("../finallexformysenti/NegatingWordList.txt", "r", encoding="utf-8") as file:
     terms_listneg = file.read().splitlines()
 neg = []
 for tn in terms_listneg:
