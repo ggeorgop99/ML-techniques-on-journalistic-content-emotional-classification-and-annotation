@@ -28,7 +28,7 @@ def clearfiles():
     temp = data["stars"].values.tolist()
 
     file_name = file_name.replace("dirty", "")
-    dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
+    dataset_path = f"../neuralnet/preprocessed_datasets/{file_name}_{mode}.csv"
 
     if mode == "bin":
         for i in range(0, len(data["stars"])):
@@ -132,10 +132,10 @@ args = parser.parse_args()
 # Access the mode arguments
 mode = args.mode
 file_name = args.file_name
-dataset_path = f"../neuralnet/datasets/{file_name}_{mode}.csv"
+dataset_path = f"../neuralnet/preprocessed_datasets/{file_name}_{mode}.csv"
 
 # Hunspell check
-h = Hunspell("el_GR")
+# h = Hunspell("el_GR")
 # if not a new .csv is downloaded and in folder
 # clear it and fix it
 if "dirty" in file_name:
@@ -328,10 +328,10 @@ with open(
                         words = "".join(sorted(set(words), key=words.index))
                         # print(words)
 
-                        k = h.suggest(words)
-                        if k != ():
-                            words = k[0]
-                        break
+                        # k = h.suggest(words)
+                        # if k != ():
+                        #     words = k[0]
+                        # break
 
                 # Negative word check. If found flag=True and next word emotion skipped
                 if words in neg:
