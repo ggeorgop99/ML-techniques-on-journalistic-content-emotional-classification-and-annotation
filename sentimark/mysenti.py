@@ -435,6 +435,7 @@ if not os.path.exists(results_csv_path):
             "Total Words",
             "Words Found",
             "Correct Predicted",
+            "Total Predicted",
         ]
     )
     results_df.to_csv(results_csv_path, index=False)
@@ -447,6 +448,7 @@ results = {
     "Total Words": totalWords,
     "Words Found": checkedWords,
     "Correct Predicted": cnt,
+    "Total Predicted": len(summinmax),
 }
 
 results_df = pd.DataFrame([results])
