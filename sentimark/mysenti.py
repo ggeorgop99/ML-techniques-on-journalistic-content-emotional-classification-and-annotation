@@ -11,7 +11,8 @@ import pandas as pd
 import csv
 from itertools import zip_longest
 from difflib import SequenceMatcher
-from hunspell import Hunspell
+
+# from hunspell import Hunspell
 import argparse
 import os
 
