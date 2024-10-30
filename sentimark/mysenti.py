@@ -183,7 +183,9 @@ for i in range(0, len(word)):
 
 
 # emoticontable same as pharm
-with open("../finallexformysenti/EmoticonLookupTable.txt", "r") as file:
+with open(
+    "../finallexformysenti/EmoticonLookupTable.txt", "r", encoding="utf-8"
+) as file:
     emotic_list = file.read().splitlines()
 emot = []
 scorem = []
