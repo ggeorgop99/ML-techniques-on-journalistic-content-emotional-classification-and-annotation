@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.utils import plot_model, to_categorical
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
@@ -62,6 +62,9 @@ dir_path = f"savedmodel_{mode}"
 new_model_name = f"{model_path}_TL_On_{file_name}_{mode}"
 model_dir = f"{dir_path}/{new_model_name}_model"
 os.makedirs(model_dir, exist_ok=True)
+
+# CSV file to save results
+results_csv_path = "models_results.csv"
 
 # Load the pretrained model
 base_model = tf.keras.models.load_model(model_path)
@@ -146,10 +149,18 @@ test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse = (
     model.evaluate(X_test, Y_test)
 )
 
+# Ensure the AUC key exists in history
+if "AUC" in history.history:
+    history.history["test_auc"] = [test_auc] * len(history.history["AUC"])
+else:
+    history.history["test_auc"] = [test_auc] * len(
+        history.history["accuracy"]
+    )  # Use a different metric length
+
 # Save the model and vectorizer
 model.save(f"{model_dir}/{new_model_name}.h5")
 model.save(f"{model_dir}/{new_model_name}.keras")
-with open(f"{model_dir}/count_vectorizer_{new_model_name}_{mode}.pkl", "wb") as f:
+with open(f"{model_dir}/count_vectorizer_{new_model_name}.pkl", "wb") as f:
     pickle.dump(vec, f)
 
 # Save history
@@ -158,6 +169,30 @@ np.save(f"{model_dir}/{new_model_name}_history.npy", history.history)
 # Plot metrics
 for metric in ["accuracy", "loss", "precision", "recall", "auc", "mean_squared_error"]:
     plot_and_save(history.history, metric, model_dir, new_model_name, mode)
+
+# Save model results to a CSV
+results = {
+    "Model Name": new_model_name,
+    "Loss": test_loss,
+    "Accuracy": test_accuracy,
+    "Precision": test_precision,
+    "Recall": test_recall,
+    "AUC": test_auc,
+    "MSE": test_mse,
+}
+
+results_df = pd.DataFrame([results])
+results_df.to_csv(
+    results_csv_path, mode="a", header=False, index=False
+)  # Append results
+
+# Plot model architecture
+plot_model(
+    model,
+    to_file=f"{model_dir}/model_plot_{new_model_name}.png",
+    show_shapes=True,
+    show_layer_names=True,
+)
 
 # Print and save classification report
 predictions = model.predict(X_test)
