@@ -274,7 +274,6 @@ testing_method = args.testing_method
 
 dir_path = f"savedmodel_{mode}/{model_name}_model"
 model_path = f"{dir_path}/{model_name}_{mode}.keras"
-history_path = f"{dir_path}/{model_name}_{mode}_history.npy"
 vectorizer_path = f"{dir_path}/count_vectorizer_{model_name}_{mode}.pkl"
 
 # Create directory for results if it doesn't exist
