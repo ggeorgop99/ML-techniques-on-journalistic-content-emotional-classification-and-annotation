@@ -110,10 +110,19 @@ else:
 for layer in base_model.layers[:-2]:
     layer.trainable = False
 
+# Define the input layer based on the shape of the vectorized data
+input_shape = X_hate_speech_vec.shape[1]
+input_layer = layers.Input(
+    shape=(input_shape,), name="new_input_layer"
+)  # Unique name here
+x = base_model(
+    input_layer, training=False
+)  # Connect to the base model with frozen layers
+
 # Add fine-tuning layers
-x = layers.Dropout(0.5)(base_model.layers[-2].output)
+x = layers.Dropout(0.5)(x)
 new_output = layers.Dense(outp_node, activation="sigmoid")(x)
-model = models.Model(inputs=base_model.input, outputs=new_output)
+model = models.Model(inputs=input_layer, outputs=new_output)
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
