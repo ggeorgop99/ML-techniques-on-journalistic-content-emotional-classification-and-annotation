@@ -14,7 +14,7 @@ from sklearn.metrics import classification_report
 
 
 # Metrics
-def plot_and_save(history, metric, model_dir, new_model_name, mode):
+def plot_and_save(history, metric, new_model_dir, new_model_name, mode):
     plt.figure()
     plt.plot(history[metric], label=f"Train {metric.capitalize()}")
     plt.plot(history[f"val_{metric}"], label=f"Validation {metric.capitalize()}")
@@ -29,7 +29,7 @@ def plot_and_save(history, metric, model_dir, new_model_name, mode):
     plt.ylabel(metric.capitalize())
     plt.xlabel("Epoch")
     plt.legend(loc="upper left")
-    plt.savefig(f"{model_dir}/{new_model_name}_{metric}_{mode}.png")
+    plt.savefig(f"{new_model_dir}/{new_model_name}_{metric}_{mode}.png")
     plt.show()
     plt.close()
 
@@ -47,7 +47,7 @@ parser.add_argument(
     "--file_name", type=str, required=True, help="Name of the hate speech dataset file"
 )
 parser.add_argument(
-    "--model_path",
+    "--model_name",
     type=str,
     required=True,
     help="Path to the pretrained model",
@@ -57,11 +57,13 @@ args = parser.parse_args()
 # Setup paths
 mode = args.mode
 file_name = args.file_name
-model_path = args.model_path
+model_name = args.model_name
+model_dir = f"savedmodel_{mode}/{model_name}_model"
+model_path = f"{model_dir}/{model_name}_{mode}.h5"
 dir_path = f"savedmodel_{mode}"
-new_model_name = f"{model_path}_TL_On_{file_name}_{mode}"
-model_dir = f"{dir_path}/{new_model_name}_model"
-os.makedirs(model_dir, exist_ok=True)
+new_model_name = f"{model_name}_TL_On_{file_name}_{mode}"
+new_model_dir = f"{dir_path}/{new_model_name}_model"
+os.makedirs(new_model_dir, exist_ok=True)
 
 # CSV file to save results
 results_csv_path = "models_results.csv"
@@ -71,7 +73,7 @@ base_model = tf.keras.models.load_model(model_path)
 
 # Load the original vectorizer used during the pretrained model's training
 with open(
-    f"{os.path.dirname(model_path)}/count_vectorizer_{os.path.basename(model_path)}.pkl",
+    f"{model_dir}/count_vectorizer_{model_name}_{mode}.pkl",
     "rb",
 ) as f:
     vec = pickle.load(f)
@@ -79,8 +81,8 @@ with open(
 # Load and preprocess the hate speech dataset
 dataset_path = f"preprocessed_datasets/{file_name}_{mode}.csv"
 hate_speech_df = pd.read_csv(dataset_path)
-X_hate_speech = hate_speech_df["text"].values
-Y_hate_speech = hate_speech_df["label"].values
+X_hate_speech = hate_speech_df["reviews"].values
+Y_hate_speech = hate_speech_df["sentiment"].values
 
 # Transform the hate speech dataset using the original vectorizer
 X_hate_speech_vec = vec.transform(X_hate_speech.astype("U"))
@@ -158,17 +160,17 @@ else:
     )  # Use a different metric length
 
 # Save the model and vectorizer
-model.save(f"{model_dir}/{new_model_name}.h5")
-model.save(f"{model_dir}/{new_model_name}.keras")
-with open(f"{model_dir}/count_vectorizer_{new_model_name}.pkl", "wb") as f:
+model.save(f"{new_model_dir}/{new_model_name}.h5")
+model.save(f"{new_model_dir}/{new_model_name}.keras")
+with open(f"{new_model_dir}/count_vectorizer_{new_model_name}.pkl", "wb") as f:
     pickle.dump(vec, f)
 
 # Save history
-np.save(f"{model_dir}/{new_model_name}_history.npy", history.history)
+np.save(f"{new_model_dir}/{new_model_name}_history.npy", history.history)
 
 # Plot metrics
 for metric in ["accuracy", "loss", "precision", "recall", "auc", "mean_squared_error"]:
-    plot_and_save(history.history, metric, model_dir, new_model_name, mode)
+    plot_and_save(history.history, metric, new_model_dir, new_model_name, mode)
 
 # Save model results to a CSV
 results = {
@@ -189,7 +191,7 @@ results_df.to_csv(
 # Plot model architecture
 plot_model(
     model,
-    to_file=f"{model_dir}/model_plot_{new_model_name}.png",
+    to_file=f"{new_model_dir}/model_plot_{new_model_name}.png",
     show_shapes=True,
     show_layer_names=True,
 )
@@ -203,6 +205,8 @@ predictions_labels = (
 )
 classification_rep = classification_report(Y_test, predictions_labels, output_dict=True)
 report_df = pd.DataFrame(classification_rep).transpose()
-report_df.to_csv(f"{model_dir}/{new_model_name}_classification_report.csv", index=False)
+report_df.to_csv(
+    f"{new_model_dir}/{new_model_name}_classification_report.csv", index=False
+)
 
 print(f"Classification Report:\n{report_df}")
