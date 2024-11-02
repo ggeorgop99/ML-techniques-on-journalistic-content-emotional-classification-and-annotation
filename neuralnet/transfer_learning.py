@@ -107,7 +107,7 @@ else:
     loss_func = "binary_crossentropy"
 
 # Freeze layers except for the last two
-for layer in base_model.layers[:-2]:
+for layer in base_model.layers[:-4]:
     layer.trainable = False
 
 # Define the input layer based on the shape of the vectorized data
@@ -126,7 +126,7 @@ model = models.Model(
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
-    optimizer=Adam(learning_rate=1e-5),
+    optimizer=Adam(learning_rate=1e-4),
     loss=loss_func,
     metrics=[
         "accuracy",
@@ -137,12 +137,14 @@ model.compile(
     ],
 )
 
+class_weights = {0: 1.0, 1: 2.0}  # Adjust based on dataset class distribution
+
 # Training callbacks
 early_stopping = EarlyStopping(
-    monitor="val_loss", patience=2, restore_best_weights=True
+    monitor="val_loss", patience=5, restore_best_weights=True, verbose=1
 )
 lr_schedule = tf.keras.callbacks.ReduceLROnPlateau(
-    monitor="val_loss", factor=0.1, patience=2, min_lr=1e-6
+    monitor="val_loss", factor=0.5, patience=3, min_lr=1e-6, verbose=1
 )
 
 # Train the model
@@ -150,11 +152,12 @@ history = model.fit(
     X_train,
     Y_train,
     validation_data=(X_valid, Y_valid),
-    epochs=300,
+    epochs=100,  # Start with 100 epochs
     batch_size=32,
+    class_weight=class_weights,  # Add class weights if needed
     callbacks=[early_stopping, lr_schedule],
+    verbose=1,
 )
-
 # Evaluate the model on the test set
 test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse = (
     model.evaluate(X_test, Y_test)
