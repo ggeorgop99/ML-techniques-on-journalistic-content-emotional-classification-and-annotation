@@ -59,7 +59,7 @@ mode = args.mode
 file_name = args.file_name
 model_name = args.model_name
 model_dir = f"savedmodel_{mode}/{model_name}_model"
-model_path = f"{model_dir}/{model_name}_{mode}.h5"
+model_path = f"{model_dir}/{model_name}_{mode}.keras"
 dir_path = f"savedmodel_{mode}"
 new_model_name = f"{model_name}_TL_On_{file_name}_{mode}"
 new_model_dir = f"{dir_path}/{new_model_name}_model"
@@ -112,9 +112,7 @@ for layer in base_model.layers[:-2]:
 
 # Define the input layer based on the shape of the vectorized data
 input_shape = X_hate_speech_vec.shape[1]
-input_layer = layers.Input(
-    shape=(input_shape,), name="new_input_layer"
-)  # Unique name here
+input_layer = layers.Input(shape=(input_shape,))  # Unique name here
 x = base_model(
     input_layer, training=False
 )  # Connect to the base model with frozen layers
@@ -122,7 +120,9 @@ x = base_model(
 # Add fine-tuning layers
 x = layers.Dropout(0.5)(x)
 new_output = layers.Dense(outp_node, activation="sigmoid")(x)
-model = models.Model(inputs=input_layer, outputs=new_output)
+model = models.Model(
+    inputs=input_layer, outputs=new_output, name="transfer_learning_model"
+)
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
@@ -150,7 +150,7 @@ history = model.fit(
     X_train,
     Y_train,
     validation_data=(X_valid, Y_valid),
-    epochs=10,
+    epochs=300,
     batch_size=32,
     callbacks=[early_stopping, lr_schedule],
 )
@@ -169,7 +169,6 @@ else:
     )  # Use a different metric length
 
 # Save the model and vectorizer
-model.save(f"{new_model_dir}/{new_model_name}.h5")
 model.save(f"{new_model_dir}/{new_model_name}.keras")
 with open(f"{new_model_dir}/count_vectorizer_{new_model_name}.pkl", "wb") as f:
     pickle.dump(vec, f)
