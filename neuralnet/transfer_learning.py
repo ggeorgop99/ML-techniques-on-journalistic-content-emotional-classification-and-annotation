@@ -6,21 +6,26 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 from tensorflow.keras import layers, models
+from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model, to_categorical
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from tensorflow.keras import backend as K
 
 
 # Define F1-score metric
 def f1_score(y_true, y_pred):
+    # Cast both y_true and y_pred to float32 to avoid type mismatches
+    y_true = K.cast(y_true, "float32")
     y_pred = K.round(y_pred)  # Round predictions to 0 or 1 for binary classification
-    tp = K.sum(K.cast(y_true * y_pred, "float"), axis=0)  # True positives
-    fp = K.sum(K.cast((1 - y_true) * y_pred, "float"), axis=0)  # False positives
-    fn = K.sum(K.cast(y_true * (1 - y_pred), "float"), axis=0)  # False negatives
 
+    # Calculate true positives, false positives, and false negatives
+    tp = K.sum(K.cast(y_true * y_pred, "float32"), axis=0)  # True positives
+    fp = K.sum(K.cast((1 - y_true) * y_pred, "float32"), axis=0)  # False positives
+    fn = K.sum(K.cast(y_true * (1 - y_pred), "float32"), axis=0)  # False negatives
+
+    # Calculate precision, recall, and F1-score
     precision = tp / (tp + fp + K.epsilon())
     recall = tp / (tp + fn + K.epsilon())
     f1 = 2 * precision * recall / (precision + recall + K.epsilon())
