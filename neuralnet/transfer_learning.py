@@ -18,23 +18,24 @@ from tensorflow.keras.regularizers import l2
 
 
 # Define F1-score metric
-def f1_score(y_true, y_pred):
-    # Cast both y_true and y_pred to float32 to avoid type mismatches
-    y_true = K.cast(y_true, "float32")
-    y_pred = K.round(y_pred)  # Round predictions to 0 or 1 for binary classification
+# @tf.keras.utils.register_keras_serializable(package="Custom", name="f1_score")
+# def f1_score(y_true, y_pred):
+#     # Cast both y_true and y_pred to float32 to avoid type mismatches
+#     y_true = K.cast(y_true, "float32")
+#     y_pred = K.round(y_pred)  # Round predictions to 0 or 1 for binary classification
 
-    # Calculate true positives, false positives, and false negatives
-    tp = K.sum(K.cast(y_true * y_pred, "float32"), axis=0)  # True positives
-    fp = K.sum(K.cast((1 - y_true) * y_pred, "float32"), axis=0)  # False positives
-    fn = K.sum(K.cast(y_true * (1 - y_pred), "float32"), axis=0)  # False negatives
+#     # Calculate true positives, false positives, and false negatives
+#     tp = K.sum(K.cast(y_true * y_pred, "float32"), axis=0)  # True positives
+#     fp = K.sum(K.cast((1 - y_true) * y_pred, "float32"), axis=0)  # False positives
+#     fn = K.sum(K.cast(y_true * (1 - y_pred), "float32"), axis=0)  # False negatives
 
-    # Calculate precision, recall, and F1-score
-    precision = tp / (tp + fp + K.epsilon())
-    recall = tp / (tp + fn + K.epsilon())
-    f1 = 2 * precision * recall / (precision + recall + K.epsilon())
-    f1 = tf.where(tf.math.is_nan(f1), tf.zeros_like(f1), f1)  # Handle division by zero
+#     # Calculate precision, recall, and F1-score
+#     precision = tp / (tp + fp + K.epsilon())
+#     recall = tp / (tp + fn + K.epsilon())
+#     f1 = 2 * precision * recall / (precision + recall + K.epsilon())
+#     f1 = tf.where(tf.math.is_nan(f1), tf.zeros_like(f1), f1)  # Handle division by zero
 
-    return K.mean(f1)
+#     return K.mean(f1)
 
 
 # Function to plot and save metrics
@@ -84,8 +85,9 @@ model_name = args.model_name
 model_dir = f"savedmodel_{mode}/{model_name}_model"
 model_path = f"{model_dir}/{model_name}_{mode}.keras"
 dir_path = f"savedmodel_{mode}"
-new_model_name = f"{model_name}_TL_On_{file_name}_{mode}"
-new_model_dir = f"{dir_path}/{new_model_name}_model"
+new_model_name_temp = f"{model_name}_TL_On_{file_name}"
+new_model_name = f"{new_model_name_temp}_{mode}"
+new_model_dir = f"{dir_path}/{new_model_name_temp}_model"
 
 # Create the new model directory
 os.makedirs(new_model_dir, exist_ok=True)
@@ -117,18 +119,26 @@ Y_hate_speech = hate_speech_df["sentiment"].values
 # Transform the hate speech dataset using the original vectorizer
 X_hate_speech_vec = vec.transform(X_hate_speech.astype("U"))
 
-# Split into training and temporary set (30% test + validation)
-X_train, X_temp, Y_train, Y_temp = train_test_split(
-    X_hate_speech_vec,
-    Y_hate_speech,
-    test_size=0.3,
-    random_state=42,
-    stratify=Y_hate_speech,
-)
+# # Split into training and temporary set (30% test + validation)
+# X_train, X_temp, Y_train, Y_temp = train_test_split(
+#     X_hate_speech_vec,
+#     Y_hate_speech,
+#     test_size=0.3,
+#     random_state=42,
+#     stratify=Y_hate_speech,
+# )
 
-# Split temporary set into validation and test set (50% of the temporary set each)
+# # Split temporary set into validation and test set (50% of the temporary set each)
+# X_valid, X_test, Y_valid, Y_test = train_test_split(
+#     X_temp, Y_temp, test_size=0.5, random_state=42, stratify=Y_temp
+# )
+
+# Split into training, validation, and test sets
+X_train, X_temp, Y_train, Y_temp = train_test_split(
+    X_hate_speech_vec, Y_hate_speech, test_size=0.3, random_state=42
+)
 X_valid, X_test, Y_valid, Y_test = train_test_split(
-    X_temp, Y_temp, test_size=0.5, random_state=42, stratify=Y_temp
+    X_temp, Y_temp, test_size=0.5, random_state=42
 )
 
 # Modify labels if mode is nonbin
@@ -173,12 +183,12 @@ model.compile(
         tf.keras.metrics.Recall(name="recall"),
         tf.keras.metrics.AUC(name="auc"),
         tf.keras.metrics.MeanSquaredError(name="mse"),
-        f1_score,
+        # f1_score,
     ],
 )
 
 # Define class weights to handle class imbalance
-class_weights = {0: 1.0, 1: 3.0}  # Adjust based on dataset class distribution
+class_weights = {0: 1.0, 1: 2.0}  # Adjust based on dataset class distribution
 
 # Training callbacks
 early_stopping = EarlyStopping(
@@ -204,7 +214,7 @@ history = model.fit(
 
 
 # Evaluate the model on the test set
-test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse, test_f1 = (
+test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse = (
     model.evaluate(X_test, Y_test)
 )
 
@@ -232,7 +242,7 @@ print("Sample True Labels:", Y_test[:10])
 np.save(f"{new_model_dir}/{new_model_name}_history.npy", history.history)
 
 # Plot metrics
-for metric in ["accuracy", "loss", "precision", "recall", "auc", "mse", "f1_score"]:
+for metric in ["accuracy", "loss", "precision", "recall", "auc", "mse"]:
     plot_and_save(history.history, metric, new_model_dir, new_model_name, mode)
 
 # Save model results to a CSV
@@ -244,7 +254,7 @@ results = {
     "Recall": test_recall,
     "AUC": test_auc,
     "MSE": test_mse,
-    "F1 Score": test_f1,
+    # "F1 Score": test_f1,
 }
 
 # Append results to the CSV
