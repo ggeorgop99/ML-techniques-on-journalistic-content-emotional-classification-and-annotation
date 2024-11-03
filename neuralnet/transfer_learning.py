@@ -197,10 +197,17 @@ results_df.to_csv(
     results_csv_path, mode="a", header=False, index=False
 )  # Append results
 
+# Define the file path for the model plot
+model_plot_path = f"{new_model_dir}/model_plot_{new_model_name}.png"
+
+# Check if the file already exists and remove it
+if os.path.exists(model_plot_path):
+    os.remove(model_plot_path)
+
 # Plot full architecture
 plot_model(
     model,
-    to_file=f"{new_model_dir}/model_plot_{new_model_name}.png",
+    to_file=model_plot_path,
     show_shapes=True,
     show_layer_names=True,
     expand_nested=True,  # This helps visualize the complete architecture
