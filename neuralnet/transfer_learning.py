@@ -8,12 +8,28 @@ import matplotlib.pyplot as plt
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model, to_categorical
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+from tensorflow.keras import backend as K
 
 
-# Metrics
+# Define F1-score metric
+def f1_score(y_true, y_pred):
+    y_pred = K.round(y_pred)  # Round predictions to 0 or 1 for binary classification
+    tp = K.sum(K.cast(y_true * y_pred, "float"), axis=0)  # True positives
+    fp = K.sum(K.cast((1 - y_true) * y_pred, "float"), axis=0)  # False positives
+    fn = K.sum(K.cast(y_true * (1 - y_pred), "float"), axis=0)  # False negatives
+
+    precision = tp / (tp + fp + K.epsilon())
+    recall = tp / (tp + fn + K.epsilon())
+    f1 = 2 * precision * recall / (precision + recall + K.epsilon())
+    f1 = tf.where(tf.math.is_nan(f1), tf.zeros_like(f1), f1)  # Handle division by zero
+
+    return K.mean(f1)
+
+
+# Function to plot and save metrics
 def plot_and_save(history, metric, new_model_dir, new_model_name, mode):
     plt.figure()
     plt.plot(history[metric], label=f"Train {metric.capitalize()}")
@@ -53,7 +69,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# Setup paths
+# Setup paths and names
 mode = args.mode
 file_name = args.file_name
 model_name = args.model_name
@@ -62,6 +78,8 @@ model_path = f"{model_dir}/{model_name}_{mode}.keras"
 dir_path = f"savedmodel_{mode}"
 new_model_name = f"{model_name}_TL_On_{file_name}_{mode}"
 new_model_dir = f"{dir_path}/{new_model_name}_model"
+
+# Create the new model directory
 os.makedirs(new_model_dir, exist_ok=True)
 
 # CSV file to save results
@@ -70,11 +88,16 @@ results_csv_path = "models_results.csv"
 # Load the pretrained model
 base_model = tf.keras.models.load_model(model_path)
 
-# Load the original vectorizer used during the pretrained model's training
-with open(
-    f"{model_dir}/count_vectorizer_{model_name}_{mode}.pkl",
-    "rb",
-) as f:
+# Inspect the base model architecture
+print("Base Model Summary:")
+base_model.summary()
+
+# Freeze layers except for the last four
+for layer in base_model.layers[:-4]:
+    layer.trainable = False
+
+# Load the original vectorizer
+with open(f"{model_dir}/count_vectorizer_{model_name}_{mode}.pkl", "rb") as f:
     vec = pickle.load(f)
 
 # Load and preprocess the hate speech dataset
@@ -105,35 +128,37 @@ else:
     outp_node = 1
     loss_func = "binary_crossentropy"
 
-# Freeze layers except for the last two
-for layer in base_model.layers[:-4]:  # Customize this based on your model structure
-    layer.trainable = False
-
 # Define the input layer based on the shape of the vectorized data
 input_shape = X_hate_speech_vec.shape[1]
-input_layer = layers.Input(shape=(input_shape,))  # Unique name here
-x = base_model(
-    input_layer, training=False
-)  # Connect to the base model with frozen layers
+input_layer = layers.Input(shape=(input_shape,), name="transfer_input_layer")
 
-# Add fine-tuning layers
-x = layers.Dropout(0.5)(x)
-new_output = layers.Dense(outp_node, activation="sigmoid")(x)
-model = models.Model(inputs=input_layer, outputs=new_output)
+# Pass the input through the base model
+x = base_model(input_layer, training=False)
+
+# Add fine-tuning layers with unique names
+x = layers.Dropout(0.5, name="transfer_dropout")(x)
+new_output = layers.Dense(outp_node, activation="sigmoid", name="transfer_output")(x)
+
+# Define the new model
+model = models.Model(
+    inputs=input_layer, outputs=new_output, name="transfer_learning_model"
+)
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
-    optimizer=Adam(learning_rate=1e-5),
+    optimizer=Adam(learning_rate=1e-4),
     loss=loss_func,
     metrics=[
         "accuracy",
-        tf.keras.metrics.Precision(),
-        tf.keras.metrics.Recall(),
-        tf.keras.metrics.AUC(),
-        tf.keras.metrics.MeanSquaredError(),
+        tf.keras.metrics.Precision(name="precision"),
+        tf.keras.metrics.Recall(name="recall"),
+        tf.keras.metrics.AUC(name="auc"),
+        tf.keras.metrics.MeanSquaredError(name="mse"),
+        f1_score,
     ],
 )
 
+# Define class weights to handle class imbalance
 class_weights = {0: 1.0, 1: 2.0}  # Adjust based on dataset class distribution
 
 # Training callbacks
@@ -144,41 +169,51 @@ lr_schedule = tf.keras.callbacks.ReduceLROnPlateau(
     monitor="val_loss", factor=0.5, patience=3, min_lr=1e-6, verbose=1
 )
 
+tensorboard_callback = TensorBoard(log_dir=f"{new_model_dir}/logs")
+
 # Train the model
 history = model.fit(
     X_train,
     Y_train,
     validation_data=(X_valid, Y_valid),
-    epochs=100,  # Start with 100 epochs
+    epochs=100,  # Adjust as needed
     batch_size=32,
-    class_weight=class_weights,  # Add class weights if needed
-    callbacks=[early_stopping, lr_schedule],
+    class_weight=class_weights,
+    callbacks=[early_stopping, lr_schedule, tensorboard_callback],
     verbose=1,
 )
 
+
 # Evaluate the model on the test set
-test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse = (
+test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse, test_f1 = (
     model.evaluate(X_test, Y_test)
 )
 
 # Ensure the AUC key exists in history
-if "AUC" in history.history:
-    history.history["test_auc"] = [test_auc] * len(history.history["AUC"])
+if "auc" in history.history:
+    history.history["test_auc"] = [test_auc] * len(history.history["auc"])
 else:
-    history.history["test_auc"] = [test_auc] * len(
-        history.history["accuracy"]
-    )  # Use a different metric length
+    history.history["test_auc"] = [test_auc] * len(history.history["accuracy"])
 
 # Save the model and vectorizer
 model.save(f"{new_model_dir}/{new_model_name}.keras")
 with open(f"{new_model_dir}/count_vectorizer_{new_model_name}.pkl", "wb") as f:
     pickle.dump(vec, f)
 
-# Save history
+# Sanity checks
+print("New Model Summary:")
+model.summary()
+
+# Inspect some predictions
+sample_predictions = model.predict(X_test[:10])
+print("Sample Predictions:", sample_predictions)
+print("Sample True Labels:", Y_test[:10])
+
+# Save training history
 np.save(f"{new_model_dir}/{new_model_name}_history.npy", history.history)
 
 # Plot metrics
-for metric in ["accuracy", "loss", "precision", "recall", "auc", "mean_squared_error"]:
+for metric in ["accuracy", "loss", "precision", "recall", "auc", "mse", "f1_score"]:
     plot_and_save(history.history, metric, new_model_dir, new_model_name, mode)
 
 # Save model results to a CSV
@@ -190,27 +225,28 @@ results = {
     "Recall": test_recall,
     "AUC": test_auc,
     "MSE": test_mse,
+    "F1 Score": test_f1,
 }
 
+# Append results to the CSV
 results_df = pd.DataFrame([results])
 results_df.to_csv(
-    results_csv_path, mode="a", header=False, index=False
-)  # Append results
+    results_csv_path, mode="a", header=not os.path.exists(results_csv_path), index=False
+)
 
-# Define the file path for the model plot
+# Plot model architecture
 model_plot_path = f"{new_model_dir}/model_plot_{new_model_name}.png"
 
-# Check if the file already exists and remove it
+# Remove existing plot file if it exists
 if os.path.exists(model_plot_path):
     os.remove(model_plot_path)
 
-# Plot full architecture
 plot_model(
     model,
     to_file=model_plot_path,
     show_shapes=True,
     show_layer_names=True,
-    expand_nested=True,  # This helps visualize the complete architecture
+    expand_nested=True,  # Helps visualize the complete architecture
 )
 
 # Print and save classification report
@@ -225,5 +261,4 @@ report_df = pd.DataFrame(classification_rep).transpose()
 report_df.to_csv(
     f"{new_model_dir}/{new_model_name}_classification_report.csv", index=False
 )
-
 print(f"Classification Report:\n{report_df}")
