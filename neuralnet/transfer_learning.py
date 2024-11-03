@@ -24,7 +24,6 @@ def plot_and_save(history, metric, new_model_dir, new_model_name, mode):
             label=f"Test {metric.capitalize()}",
             linestyle="--",
         )
-
     plt.title(f"Model {metric.capitalize()}")
     plt.ylabel(metric.capitalize())
     plt.xlabel("Epoch")
@@ -107,7 +106,7 @@ else:
     loss_func = "binary_crossentropy"
 
 # Freeze layers except for the last two
-for layer in base_model.layers[:-4]:
+for layer in base_model.layers[:-4]:  # Customize this based on your model structure
     layer.trainable = False
 
 # Define the input layer based on the shape of the vectorized data
@@ -120,13 +119,11 @@ x = base_model(
 # Add fine-tuning layers
 x = layers.Dropout(0.5)(x)
 new_output = layers.Dense(outp_node, activation="sigmoid")(x)
-model = models.Model(
-    inputs=input_layer, outputs=new_output, name="transfer_learning_model"
-)
+model = models.Model(inputs=input_layer, outputs=new_output)
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
-    optimizer=Adam(learning_rate=1e-4),
+    optimizer=Adam(learning_rate=1e-5),
     loss=loss_func,
     metrics=[
         "accuracy",
@@ -158,6 +155,7 @@ history = model.fit(
     callbacks=[early_stopping, lr_schedule],
     verbose=1,
 )
+
 # Evaluate the model on the test set
 test_loss, test_accuracy, test_precision, test_recall, test_auc, test_mse = (
     model.evaluate(X_test, Y_test)
