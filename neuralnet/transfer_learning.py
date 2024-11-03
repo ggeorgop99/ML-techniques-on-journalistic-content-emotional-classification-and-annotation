@@ -1,3 +1,5 @@
+# bash for tensorboard: tensorboard --logdir=savedmodel_bin/my_model_TL_On_my_dataset_bin_model/logs
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -12,6 +14,7 @@ from tensorflow.keras.utils import plot_model, to_categorical
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+from tensorflow.keras.regularizers import l2
 
 
 # Define F1-score metric
@@ -97,8 +100,8 @@ base_model = tf.keras.models.load_model(model_path)
 print("Base Model Summary:")
 base_model.summary()
 
-# Freeze layers except for the last four
-for layer in base_model.layers[:-4]:
+# Freeze layers except for the last n layers
+for layer in base_model.layers[:-6]:
     layer.trainable = False
 
 # Load the original vectorizer
@@ -114,12 +117,18 @@ Y_hate_speech = hate_speech_df["sentiment"].values
 # Transform the hate speech dataset using the original vectorizer
 X_hate_speech_vec = vec.transform(X_hate_speech.astype("U"))
 
-# Split into training, validation, and test sets
+# Split into training and temporary set (30% test + validation)
 X_train, X_temp, Y_train, Y_temp = train_test_split(
-    X_hate_speech_vec, Y_hate_speech, test_size=0.3, random_state=42
+    X_hate_speech_vec,
+    Y_hate_speech,
+    test_size=0.3,
+    random_state=42,
+    stratify=Y_hate_speech,
 )
+
+# Split temporary set into validation and test set (50% of the temporary set each)
 X_valid, X_test, Y_valid, Y_test = train_test_split(
-    X_temp, Y_temp, test_size=0.5, random_state=42
+    X_temp, Y_temp, test_size=0.5, random_state=42, stratify=Y_temp
 )
 
 # Modify labels if mode is nonbin
@@ -142,6 +151,11 @@ x = base_model(input_layer, training=False)
 
 # Add fine-tuning layers with unique names
 x = layers.Dropout(0.5, name="transfer_dropout")(x)
+# x = layers.Dense(128, activation="relu", kernel_regularizer=l2(0.01))(
+#     x
+# )  # L2 regularization
+# x = layers.BatchNormalization()(x)  # BatchNorm for stability
+# x = layers.Dropout(0.5)(x)  # Additional dropout
 new_output = layers.Dense(outp_node, activation="sigmoid", name="transfer_output")(x)
 
 # Define the new model
@@ -151,7 +165,7 @@ model = models.Model(
 
 # Compile the model with a low learning rate for fine-tuning
 model.compile(
-    optimizer=Adam(learning_rate=1e-4),
+    optimizer=Adam(learning_rate=1e-5),
     loss=loss_func,
     metrics=[
         "accuracy",
@@ -164,14 +178,14 @@ model.compile(
 )
 
 # Define class weights to handle class imbalance
-class_weights = {0: 1.0, 1: 2.0}  # Adjust based on dataset class distribution
+class_weights = {0: 1.0, 1: 3.0}  # Adjust based on dataset class distribution
 
 # Training callbacks
 early_stopping = EarlyStopping(
     monitor="val_loss", patience=5, restore_best_weights=True, verbose=1
 )
 lr_schedule = tf.keras.callbacks.ReduceLROnPlateau(
-    monitor="val_loss", factor=0.5, patience=3, min_lr=1e-6, verbose=1
+    monitor="val_loss", factor=0.5, patience=4, min_lr=1e-7, verbose=1
 )
 
 tensorboard_callback = TensorBoard(log_dir=f"{new_model_dir}/logs")
