@@ -88,8 +88,9 @@ def summarize_tweets_transformer_greek(
     model_name="nlpaueb/grt5-small",  # Greek T5 model (small version)
     max_chunk_length_words=400,  # Safer limit for T5 (often 512 tokens)
     summary_max_length=150,  # Max tokens in output summary
-    summary_min_length=20,  # Min tokens in output summary
+    summary_min_length=30,  # Min tokens in output summary
     batch_size=8,
+    s1_summary_max_length_factor=1.5,  # S1 chunks can be a bit longer
 ):  # Adjust based on GPU memory
     """
     Summarizes Greek text from a DataFrame using a Hugging Face transformer model.
@@ -102,18 +103,19 @@ def summarize_tweets_transformer_greek(
         summary_max_length (int): Maximum number of tokens for the generated summary.
         summary_min_length (int): Minimum number of tokens for the generated summary.
         batch_size (int): How many chunks to process simultaneously (requires GPU).
+        s1_summary_max_length_factor (float): Factor to increase max length for S1 chunks.
 
     Returns:
         str: The generated summary, or an error message string.
     """
     # Combine all cleaned tweets into a single text block
     # Using ". " as a separator helps the model recognize sentence boundaries.
-    all_text = ". ".join(df["cleaned_text"].astype(str).tolist())
+    all_text_S1 = ". ".join(df["cleaned_text"].astype(str).tolist())
     # Consolidate multiple periods and ensure space after period
-    all_text = re.sub(r"\.+", ".", all_text)
-    all_text = re.sub(r"\s*\.\s*", ". ", all_text).strip()
+    all_text_S1 = re.sub(r"\.+", ".", all_text_S1)
+    all_text_S1 = re.sub(r"\s*\.\s*", ". ", all_text_S1).strip()
 
-    if not all_text:
+    if not all_text_S1:
         return "No text available to summarize after preprocessing."
 
     print(f"\nInitializing summarization pipeline with model: {model_name}...")
@@ -134,87 +136,134 @@ def summarize_tweets_transformer_greek(
             device=device,
         )
 
-        # Optional: Get model's max input length from tokenizer if needed for precise chunking
-        # tokenizer = AutoTokenizer.from_pretrained(model_name)
-        # model_token_limit = tokenizer.model_max_length
-        # print(f"Model's theoretical max input tokens: {model_token_limit}")
-        # Using word count chunking for simplicity:
-        words = all_text.split()
-        # Create chunks based on word count
-        chunks = [
-            " ".join(words[i : i + max_chunk_length_words])
-            for i in range(0, len(words), max_chunk_length_words)
+        print("Pipeline loaded.")
+
+        # --- STAGE 1: Summarize original tweet chunks ---
+        print("\n--- Starting Stage 1 Summarization (Tweets to S1 Summaries) ---")
+        words_S1 = all_text_S1.split()
+        chunks_S1 = [
+            " ".join(words_S1[i : i + max_chunk_length_words])
+            for i in range(0, len(words_S1), max_chunk_length_words)
         ]
         print(
-            f"Input text ({len(words)} words) split into {len(chunks)} chunk(s) of approx. {max_chunk_length_words} words each."
+            f"Stage 1: Input text ({len(words_S1)} words) split into {len(chunks_S1)} chunk(s)."
         )
 
-        if not chunks:
-            return "Text could not be split into chunks (perhaps empty after preprocessing)."
+        if not chunks_S1:
+            return "Stage 1: Text could not be split into chunks."
 
-        summaries = []
-        print(f"Summarizing {len(chunks)} chunks (batch size: {batch_size})...")
+        summaries_S1 = []
+        num_batches_S1 = math.ceil(len(chunks_S1) / batch_size)
+        # For S1 summaries, we can allow them to be a bit longer than the final target,
+        # as they will be inputs to S2.
+        s1_max_len = int(summary_max_length * s1_summary_max_length_factor)
+        s1_min_len = int(
+            summary_min_length * s1_summary_max_length_factor * 0.8
+        )  # scale min too
 
-        # Process chunks using the pipeline - batching is efficient on GPU
-        num_batches = math.ceil(len(chunks) / batch_size)
-        for i in range(num_batches):
-            batch_chunks = chunks[i * batch_size : (i + 1) * batch_size]
-            print(f"Processing batch {i+1}/{num_batches} ({len(batch_chunks)} chunks)")
+        for i in range(num_batches_S1):
+            batch_chunks_S1 = chunks_S1[i * batch_size : (i + 1) * batch_size]
+            print(
+                f"Stage 1: Processing batch {i+1}/{num_batches_S1} ({len(batch_chunks_S1)} chunks)"
+            )
             try:
-                # The pipeline handles tokenization internally
-                chunk_summaries = summarizer(
-                    batch_chunks,
-                    max_length=summary_max_length,
-                    min_length=summary_min_length,
-                    do_sample=False,  # For deterministic output
+                chunk_summaries_S1_result = summarizer(
+                    batch_chunks_S1,
+                    max_length=s1_max_len,
+                    min_length=s1_min_len,
+                    do_sample=False,
                     truncation=True,
-                )  # Ensure input doesn't exceed model limit
-                summaries.extend([s["summary_text"] for s in chunk_summaries])
-            except Exception as batch_error:
-                print(f"Error processing batch {i+1}: {batch_error}")
-                print("Skipping this batch.")
-                # Optionally add placeholder errors for failed batches
-                summaries.extend(["[Error processing chunk]" for _ in batch_chunks])
+                )
+                summaries_S1.extend(
+                    [s["summary_text"] for s in chunk_summaries_S1_result]
+                )
+            except Exception as batch_error_s1:
+                print(
+                    f"Error processing Stage 1 batch {i+1}: {batch_error_s1}. Skipping this batch."
+                )
+                summaries_S1.extend(["[S1 Error]" for _ in batch_chunks_S1])
 
-        print(f"Generated {len(summaries)} chunk summaries.")
+        intermediate_long_summary = " ".join(
+            s for s in summaries_S1 if s != "[S1 Error]"
+        ).strip()
 
-        # Combine the summaries from all chunks
-        final_summary = " ".join(summaries).strip()  # Join with space
+        if not intermediate_long_summary:
+            return "No summary generated after Stage 1 (all chunks might have failed or were empty)."
+        print(
+            f"--- Stage 1 Summarization Complete. Intermediate summary length: {len(intermediate_long_summary.split())} words ---"
+        )
 
-        # Optional: Re-summarize if the combined summary is too long or consists of many chunks
-        # This adds processing time and might lose detail. Evaluate if needed.
-        # needs_resummarization = (
-        #     len(chunks) > 1 and len(final_summary.split()) > summary_max_length * 1.2
-        # )  # Heuristic
+        # --- STAGE 2: Decide if intermediate_long_summary needs further summarization ---
+        needs_stage2 = False
+        # Condition: if ILS is longer than one processing chunk AND it was formed from multiple S1 summaries
+        if (
+            len(intermediate_long_summary.split()) > (max_chunk_length_words * 1.1)
+            and len(summaries_S1) > 1
+        ):
+            needs_stage2 = True
 
-        # if needs_resummarization:
-        #     print("Combined summary is long, attempting to re-summarize...")
-        #     try:
-        #         # Ensure the combined summary itself isn't too long for the model
-        #         final_summary_words = final_summary.split()
-        #         resummarization_input = " ".join(
-        #             final_summary_words[:max_chunk_length_words]
-        #         )
-        #         if len(final_summary_words) > max_chunk_length_words:
-        #             print(
-        #                 f"Warning: Combined summary truncated to {max_chunk_length_words} words for re-summarization."
-        #             )
+        if needs_stage2:
+            print(
+                "\n--- Starting Stage 2 Summarization (Intermediate Summary to Final Summary) ---"
+            )
+            words_S2_input = intermediate_long_summary.split()
+            chunks_S2 = [
+                " ".join(words_S2_input[i : i + max_chunk_length_words])
+                for i in range(0, len(words_S2_input), max_chunk_length_words)
+            ]
+            print(
+                f"Stage 2: Intermediate summary ({len(words_S2_input)} words) split into {len(chunks_S2)} chunk(s)."
+            )
 
-        #         final_summary = summarizer(
-        #             resummarization_input,
-        #             max_length=summary_max_length,
-        #             min_length=summary_min_length,
-        #             do_sample=False,
-        #         )[0]["summary_text"]
-        #         print("Re-summarization complete.")
-        #     except Exception as e:
-        #         print(
-        #             f"Warning: Re-summarization failed ({e}). Returning the combined chunk summaries."
-        #         )
-        #         # Keep the combined_summary as is
-        #         final_summary = " ".join(
-        #             summaries
-        #         ).strip()  # Ensure it's the joined version
+            if not chunks_S2:
+                print(
+                    "Stage 2: Could not split intermediate summary into chunks. Returning Stage 1 result."
+                )
+                return intermediate_long_summary
+
+            summaries_S2 = []
+            num_batches_S2 = math.ceil(len(chunks_S2) / batch_size)
+            for i in range(num_batches_S2):
+                batch_chunks_S2 = chunks_S2[i * batch_size : (i + 1) * batch_size]
+                print(
+                    f"Stage 2: Processing batch {i+1}/{num_batches_S2} ({len(batch_chunks_S2)} chunks)"
+                )
+                try:
+                    # Use the target summary_max_length and summary_min_length for this final stage
+                    chunk_summaries_S2_result = summarizer(
+                        batch_chunks_S2,
+                        max_length=summary_max_length,
+                        min_length=summary_min_length,
+                        do_sample=False,
+                        truncation=True,
+                    )
+                    summaries_S2.extend(
+                        [s["summary_text"] for s in chunk_summaries_S2_result]
+                    )
+                except Exception as batch_error_s2:
+                    print(
+                        f"Error processing Stage 2 batch {i+1}: {batch_error_s2}. Skipping this batch."
+                    )
+                    summaries_S2.extend(["[S2 Error]" for _ in batch_chunks_S2])
+
+            final_summary = " ".join(
+                s for s in summaries_S2 if s != "[S2 Error]"
+            ).strip()
+
+            if not final_summary:
+                print(
+                    "Warning: Stage 2 summarization produced an empty result. Falling back to Stage 1 result."
+                )
+                return intermediate_long_summary
+
+            print(
+                f"--- Stage 2 Summarization Complete. Final summary length: {len(final_summary.split())} words ---"
+            )
+        else:
+            print(
+                "\nIntermediate summary is concise enough or from a single S1 chunk. Stage 2 summarization skipped."
+            )
+            final_summary = intermediate_long_summary
 
         return final_summary
 
@@ -302,23 +351,24 @@ def save_summary_to_file(summary_text, input_csv_path, model_name, output_dir=".
 # --- Main Execution Logic ---
 if __name__ == "__main__":
     # --- Configuration ---
-    CSV_FILE = "media.csv"  # <--- !!! SET YOUR GREEK TWEET CSV FILE PATH HERE !!!
-    TEXT_COLUMN = (
-        "text"  # <--- !!! SET THE COLUMN NAME CONTAINING GREEK TWEETS HERE !!!
-    )
+    CSV_FILE = "media.csv"
+    TEXT_COLUMN = "text"
 
     # Model Options:
     # "IMISLab/GreekT5-mt5-small-greeksum" (Faster, less memory)
     # "IMISLab/GreekT5-umt5-base-greeksum" (Potentially more accurate, slower, more memory)
     GREEK_MODEL_NAME = "IMISLab/GreekT5-mt5-small-greeksum"
+    OUTPUT_DIRECTORY = "summaries_hierarchical"
 
     # Summarization Parameters
     MAX_WORDS_PER_CHUNK = 400  # Input chunk size (adjust based on model and memory)
-    SUMMARY_MAX_TOKENS = 180  # Desired max summary length
-    SUMMARY_MIN_TOKENS = 30  # Desired min summary length
+    TARGET_SUMMARY_MAX_TOKENS = 141  # Desired max summary length
+    TARGET_SUMMARY_MIN_TOKENS = 40  # Desired min summary length
     PROCESSING_BATCH_SIZE = (
         8  # Num chunks per batch (reduce if GPU memory errors occur)
     )
+    S1_SUMMARY_MAX_LENGTH_FACTOR = 1.5
+
     # --- End Configuration ---
 
     print("Starting Greek Tweet Summarization Process...")
@@ -337,14 +387,21 @@ if __name__ == "__main__":
             tweet_df_greek,
             model_name=GREEK_MODEL_NAME,
             max_chunk_length_words=MAX_WORDS_PER_CHUNK,
-            summary_max_length=SUMMARY_MAX_TOKENS,
-            summary_min_length=SUMMARY_MIN_TOKENS,
+            summary_max_length=TARGET_SUMMARY_MAX_TOKENS,  # This is for the S2 (final) stage
+            summary_min_length=TARGET_SUMMARY_MIN_TOKENS,  # This is for the S2 (final) stage
             batch_size=PROCESSING_BATCH_SIZE,
+            s1_summary_max_length_factor=S1_SUMMARY_MAX_LENGTH_FACTOR,  # New parameter
         )
 
         print("\n--- Generated Summary ---")
-        if "Error:" in summary_result:
-            print(f"Summarization failed: {summary_result}")
+        if (
+            summary_result is None
+            or "Error:" in summary_result
+            or not summary_result.strip()
+        ):
+            print(
+                f"Summarization failed or produced an empty/error result: {summary_result}"
+            )
         else:
             print(summary_result)
             print("-------------------------")
@@ -352,6 +409,7 @@ if __name__ == "__main__":
                 summary_text=summary_result,
                 input_csv_path=CSV_FILE,
                 model_name=GREEK_MODEL_NAME,
+                output_dir=OUTPUT_DIRECTORY,
             )
 
     elif tweet_df_greek is not None and tweet_df_greek.empty:
