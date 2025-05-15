@@ -65,7 +65,7 @@ parser.add_argument(
     help="Mode of the model: nonbin or bin",
 )
 parser.add_argument(
-    "--file_name", type=str, required=True, help="Name of file to preprocess"
+    "--file_name", type=str, required=True, help="Name of file to train"
 )
 args = parser.parse_args()
 

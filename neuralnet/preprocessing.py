@@ -26,11 +26,13 @@ parser.add_argument(
 parser.add_argument(
     "--file_name", type=str, required=True, help="Name of file to preprocess"
 )
+parser.add_argument("--column_name", type=str, required=False, help="Name of column to preprocess")
 args = parser.parse_args()
 
 # Access the mode arguments
 mode = args.mode
 file_name = args.file_name
+column_name = args.column_name
 
 # Load stopwords
 stopwords = set(
@@ -116,6 +118,10 @@ def preprocess_text(text, stopwords):
 df = pd.read_csv(f"datasets/{file_name}_{mode}.csv")
 
 # Apply spellchecking
+if args.column_name:
+    df["reviews"] = df[args.column_name]
+    df.drop(columns=[args.column_name], inplace=True)
+    
 df["reviews"] = df["reviews"].apply(spell_check)
 
 # Apply lemmatization and preprocessing
