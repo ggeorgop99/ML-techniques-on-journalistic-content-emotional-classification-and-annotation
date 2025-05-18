@@ -130,7 +130,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Author
 
-Verus Plus - Department of Electrical and Computer Engineering, Aristotle University of Thessaloniki
+Georgios Georgopoulos - Department of Electrical and Computer Engineering, Aristotle University of Thessaloniki
 
 ## Acknowledgments
 
