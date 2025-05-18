@@ -1,0 +1,30 @@
+# Web Scraping
+scrapy>=2.8.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+
+# Machine Learning
+tensorflow>=2.13.0
+keras>=2.13.0
+torch>=2.0.0
+transformers>=4.30.0
+
+# Natural Language Processing
+nltk>=3.8.1
+spacy>=3.6.0
+greek-stemmer>=0.1.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# Utilities
+tqdm>=4.65.0
+joblib>=1.3.0
+python-dotenv>=1.0.0 
