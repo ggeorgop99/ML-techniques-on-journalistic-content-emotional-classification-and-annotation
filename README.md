@@ -45,7 +45,7 @@ The project consists of three main components:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ML-techniques-on-journalistic-content-emotional-classification-and-annotation.git
+git clone https://github.com/ggeorgop99/ML-techniques-on-journalistic-content-emotional-classification-and-annotation.git
 cd ML-techniques-on-journalistic-content-emotional-classification-and-annotation
 ```
 
